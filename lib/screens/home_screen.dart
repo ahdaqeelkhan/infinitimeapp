@@ -21,9 +21,28 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final PageController _pageController = PageController();
-  final ScrollController _scrollController = ScrollController(); // ScrollController for Scrollbar
+  final ScrollController _scrollController = ScrollController();
   Timer? _autoScrollTimer;
   int _selectedIndex = 0;
+
+  void _startAutoScroll() {
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
+      if (_pageController.hasClients) {
+        if (_pageController.page!.round() == 4) {
+          _pageController.animateToPage(
+            0,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          );
+        } else {
+          _pageController.nextPage(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+          );
+        }
+      }
+    });
+  }
 
   void _onItemTapped(int index) {
     if (index != _selectedIndex) {
@@ -31,51 +50,58 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedIndex = index;
       });
 
-      if (index == 1) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProductScreen(isDarkMode: widget.isDarkMode),
-          ),
-        );
-      } else if (index == 2) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CartScreen(isDarkMode: widget.isDarkMode),
-          ),
-        );
-      } else if (index == 3) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProfileScreen(
-              isDarkMode: widget.isDarkMode,
-              toggleTheme: widget.toggleTheme,
-            ),
-          ),
-        );
+      Widget nextScreen;
+      switch (index) {
+        case 1:
+          nextScreen = ProductScreen(isDarkMode: widget.isDarkMode);
+          break;
+        case 2:
+          nextScreen = CartScreen(isDarkMode: widget.isDarkMode);
+          break;
+        case 3:
+          nextScreen = ProfileScreen(
+            isDarkMode: widget.isDarkMode,
+            toggleTheme: widget.toggleTheme,
+          );
+          break;
+        default:
+          return;
       }
+
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => nextScreen,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end = Offset.zero;
+            const curve = Curves.easeInOut;
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
+            var offsetAnimation = animation.drive(tween);
+            return SlideTransition(
+              position: offsetAnimation,
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+      );
     }
   }
 
   @override
   void initState() {
     super.initState();
-    _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
-      if (_pageController.page!.round() == 4) {
-        _pageController.animateToPage(0, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
-      } else {
-        _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
-      }
-    });
+    _startAutoScroll();
   }
 
   @override
   void dispose() {
     _autoScrollTimer?.cancel();
     _pageController.dispose();
-    _scrollController.dispose(); // Dispose of ScrollController
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -86,55 +112,70 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: Scrollbar(
         controller: _scrollController,
-        thumbVisibility: isLandscape, // Show scrollbar only in landscape mode
+        thumbVisibility: isLandscape,
         child: CustomScrollView(
           controller: _scrollController,
           slivers: [
             SliverAppBar(
-              pinned: !isLandscape, // AppBar remains pinned in portrait mode
+              pinned: true,
               floating: false,
-              title: const Text('InfiniTime'),
-              actions: [
-                IconButton(
-                  icon: Icon(
-                    widget.isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
-                    color: widget.isDarkMode ? Colors.yellow : Colors.black,
-                  ),
-                  onPressed: widget.toggleTheme,
-                ),
-              ],
+              expandedHeight: 120,
               backgroundColor: widget.isDarkMode ? Colors.black : Colors.purpleAccent,
               elevation: 0,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(24),
+                ),
+              ),
+              flexibleSpace: FlexibleSpaceBar(
+                title: const Text(
+                  'InfiniTime',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                  ),
+                ),
+                centerTitle: true,
+              ),
+              actions: [
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: widget.isDarkMode 
+                        ? Colors.white.withOpacity(0.1) 
+                        : Colors.black.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      widget.isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
+                      color: widget.isDarkMode ? Colors.yellow : Colors.black,
+                    ),
+                    onPressed: widget.toggleTheme,
+                  ),
+                ),
+              ],
             ),
             SliverList(
               delegate: SliverChildListDelegate([
                 Column(
                   children: [
                     _buildFeaturedCarousel(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     _buildSectionTitle('Latest Arrivals'),
-                    _buildProductCard(
-                      imageUrl: 'lib/assets/images/deepsea2.jpg',
-                      title: 'DeepSea',
-                      description: 'Extreme divers\' watches',
-                    ),
-                    _buildProductCard(
-                      imageUrl: 'lib/assets/images/submariner.png',
-                      title: 'Submariner',
-                      description: 'The supreme divers\' watch',
-                    ),
-                    const SizedBox(height: 20),
+                    _buildLatestArrivals(),
+                    const SizedBox(height: 24),
                     _buildSectionTitle('Categories'),
                     _buildCategoriesList(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     _buildSectionTitle('Best Sellers'),
                     _buildBestSellers(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     _buildSectionTitle('What Our Customers Say'),
                     _buildTestimonials(),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 32),
                     _buildExploreMore(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     _buildFooter(),
                   ],
                 ),
@@ -143,17 +184,44 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.watch_rounded), label: 'Watches'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Cart'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_circle), label: 'Profile'),
-        ],
-        selectedItemColor: Colors.purpleAccent,
-        unselectedItemColor: Colors.grey,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_rounded),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.watch_rounded),
+              label: 'Watches',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_cart_rounded),
+              label: 'Cart',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.account_circle_rounded),
+              label: 'Profile',
+            ),
+          ],
+          selectedItemColor: Colors.purpleAccent,
+          unselectedItemColor: Colors.grey,
+          type: BottomNavigationBarType.fixed,
+        ),
       ),
     );
   }
@@ -163,6 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Container(
           height: 300,
+          margin: const EdgeInsets.symmetric(vertical: 16),
           child: PageView(
             controller: _pageController,
             children: [
@@ -174,15 +243,17 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         SmoothPageIndicator(
           controller: _pageController,
           count: 5,
           effect: ExpandingDotsEffect(
             activeDotColor: Colors.purpleAccent,
+            dotColor: Colors.grey.shade300,
             dotHeight: 8,
             dotWidth: 8,
-            expansionFactor: 5,
+            expansionFactor: 4,
+            spacing: 8,
           ),
         ),
       ],
@@ -190,70 +261,187 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCarouselItem(String imageUrl) {
-    return Image.asset(
-      imageUrl,
-      fit: BoxFit.cover,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Image.asset(
+          imageUrl,
+          fit: BoxFit.cover,
+        ),
+      ),
     );
   }
 
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(child: Divider(color: Colors.grey)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          Expanded(child: Divider(color: Colors.grey)),
+          TextButton(
+            onPressed: () {
+              // Navigate to section view
+            },
+            child: Row(
+              children: [
+                Text(
+                  'View All',
+                  style: TextStyle(
+                    color: Colors.purpleAccent.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 14,
+                  color: Colors.purpleAccent.shade700,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildProductCard({required String imageUrl, required String title, required String description}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        elevation: 3,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              child: Image.asset(imageUrl, height: 180, width: double.infinity, fit: BoxFit.cover),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(15.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(fontFamily: 'Inter', fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(description, style: const TextStyle(fontSize: 16, color: Colors.grey)),
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: () {
-                      // Navigation logic for more details
-                    },
-                    child: const Text(
-                      'Discover more >',
-                      style: TextStyle(fontSize: 16, color: Colors.purpleAccent),
-                    ),
-                  ),
-                ],
+  Widget _buildLatestArrivals() {
+    return SizedBox(
+      height: 320,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        children: [
+          _buildProductCard(
+            imageUrl: 'lib/assets/images/deepsea2.jpg',
+            title: 'DeepSea',
+            description: 'Extreme divers\' watches',
+          ),
+          _buildProductCard(
+            imageUrl: 'lib/assets/images/submariner.png',
+            title: 'Submariner',
+            description: 'The supreme divers\' watch',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductCard({
+    required String imageUrl,
+    required String title,
+    required String description,
+  }) {
+    return Container(
+      width: 220,
+      height: 320,  
+      margin: const EdgeInsets.only(right: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,  
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: Image.asset(
+              imageUrl,
+              height: 180,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 180,
+                color: Colors.grey[200],
+                child: Icon(
+                  Icons.image_not_supported_rounded,
+                  size: 40,
+                  color: Colors.grey[400],
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,  
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '\$299.99',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purpleAccent,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.purpleAccent.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 20,
+                        color: Colors.purpleAccent,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -315,10 +503,13 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
-          _buildProductCard(
-            imageUrl: 'lib/assets/images/watch2.jpg',
-            title: 'Rolex Datejust',
-            description: 'Sleek and stylish',
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: _buildProductCard(
+              imageUrl: 'lib/assets/images/watch2.jpg',
+              title: 'Rolex Datejust',
+              description: 'Sleek and stylish',
+            ),
           ),
           _buildProductCard(
             imageUrl: 'lib/assets/images/watch3.jpeg',
@@ -346,23 +537,59 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTestimonial(String name, String review) {
-    return SizedBox(
-      height: 130,
-      width: 500,// manual height for the card
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 2,
         child: Padding(
-          padding: const EdgeInsets.all(15.0),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 5),
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.purpleAccent.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        name[0],
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purpleAccent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Text(
                 review,
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-                maxLines: 2, // Limit text lines
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  height: 1.5,
+                ),
+                maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
             ],
@@ -392,7 +619,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFooter() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 20),
-      child: const Text('© 2024 InfiniTime | All Rights Reserved', style: TextStyle(fontSize: 14, color: Colors.grey)),
+      child: const Text(' 2024 InfiniTime | All Rights Reserved', style: TextStyle(fontSize: 14, color: Colors.grey)),
     );
   }
 }
